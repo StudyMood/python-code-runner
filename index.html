@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Python Code Runner</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+
+<style>
+* {
+  box-sizing: border-box;
+  font-family: 'Poppins', sans-serif;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #0f172a;
+  color: #e5e7eb;
+}
+
+/* HEADER */
+header {
+  padding: 14px;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 600;
+  color: #38bdf8;
+  border-bottom: 1px solid #1e293b;
+}
+
+/* STEP INDICATOR */
+#steps {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.step {
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  background: #020617;
+  color: #94a3b8;
+  border: 1px solid #1e293b;
+}
+
+.step.active {
+  background: #38bdf8;
+  color: #020617;
+  font-weight: 500;
+}
+
+/* MAIN LAYOUT */
+.main {
+  display: flex;
+  height: calc(100vh - 110px);
+}
+
+/* LEFT */
+.left {
+  width: 65%;
+  padding: 16px;
+  border-right: 1px solid #1e293b;
+}
+
+/* RIGHT */
+.right {
+  width: 35%;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* LABEL */
+.label {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-bottom: 4px;
+}
+
+/* TEXTAREA */
+textarea {
+  width: 100%;
+  background: #020617;
+  border: 1px solid #1e293b;
+  border-radius: 10px;
+  padding: 12px;
+  color: #e5e7eb;
+  font-size: 14px;
+  resize: none;
+}
+
+#codeArea {
+  height: calc(100% - 60px);
+}
+
+#inputArea {
+  height: 120px;
+}
+
+/* BUTTON */
+button {
+  margin-top: 10px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: none;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  background: #38bdf8;
+  color: #020617;
+}
+
+/* OUTPUT */
+.output-box {
+  flex: 1;
+  background: #020617;
+  border-radius: 10px;
+  padding: 14px;
+  white-space: pre-wrap;
+  overflow-y: auto;
+  border: 1px solid #1e293b;
+}
+
+.output {
+  color: #4ade80;
+}
+
+.error {
+  color: #f87171;
+}
+
+/* MOBILE */
+@media (max-width: 768px) {
+  .main {
+    flex-direction: column;
+  }
+  .left, .right {
+    width: 100%;
+  }
+  #codeArea {
+    height: 240px;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<header>Python Code Runner</header>
+
+<div id="steps">
+  <div class="step active" id="step-code">Code</div>
+  <div class="step" id="step-input">Input</div>
+  <div class="step" id="step-output">Output</div>
+</div>
+
+<div class="main">
+
+  <!-- LEFT : CODE -->
+  <div class="left">
+    <div class="label">Python Code</div>
+    <textarea id="codeArea">
+a = int(input("Enter first number: "))
+b = int(input("Enter second number: "))
+
+print("First number =", a)
+print("Second number =", b)
+
+print("Addition =", a + b)
+    </textarea>
+
+    <button type="button" onclick="runCode()">▶ Run Code</button>
+  </div>
+
+  <!-- RIGHT : INPUT + OUTPUT -->
+  <div class="right">
+
+    <!-- INPUT -->
+    <div id="inputSection" style="display:none;">
+      <div class="label">Program Input</div>
+      <textarea id="inputArea" placeholder="First Number&#10;Second Number"></textarea>
+      <button type="button" onclick="submitInput()">Submit Input</button>
+    </div>
+
+    <!-- OUTPUT -->
+    <div id="outputSection" style="display:none;">
+      <div class="label">Output</div>
+      <div id="output" class="output-box output"></div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+let pendingCode = "";
+
+function setStep(step) {
+  document.querySelectorAll(".step").forEach(s => s.classList.remove("active"));
+  document.getElementById("step-" + step).classList.add("active");
+}
+
+function runCode() {
+  pendingCode = document.getElementById("codeArea").value;
+
+  document.getElementById("inputSection").style.display = "none";
+  document.getElementById("outputSection").style.display = "none";
+  document.getElementById("output").textContent = "";
+  document.getElementById("inputArea").value = "";
+
+  setStep("code");
+
+  // AUTO detect input()
+  if (pendingCode.includes("input(")) {
+    document.getElementById("inputSection").style.display = "block";
+    setStep("input");
+  } else {
+    executeCode("");
+  }
+}
+
+function submitInput() {
+  executeCode(document.getElementById("inputArea").value);
+}
+
+function executeCode(userInput) {
+  fetch("http://127.0.0.1:5000/run", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      code: pendingCode,
+      input: userInput
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    document.getElementById("inputSection").style.display = "none";
+    document.getElementById("outputSection").style.display = "block";
+    setStep("output");
+
+    const out = document.getElementById("output");
+    if (data.error && data.error.trim() !== "") {
+      out.className = "output-box error";
+      out.textContent = "ERROR:\n" + data.error;
+    } else {
+      out.className = "output-box output";
+      out.textContent = data.output || "No Output";
+    }
+  });
+}
+</script>
+
+</body>
+</html>
